@@ -839,6 +839,96 @@ void RemoveBot()
 	gi.error ("Can't remove bot.");
 }
 
+void RemoveBotByName(const char *name)  
+{  
+    int i, botindex;  
+    edict_t *e, *ent;  
+    gclient_t *client;  
+  
+    // Find the bot index by name  
+    botindex = -1;  
+    for (i = 0; i < MAXBOTS; i++) {  
+        if ((Bot[i].spflg == BOT_SPAWNED || Bot[i].spflg == BOT_NEXTLEVEL)  
+            && Q_stricmp(Bot[i].netname, name) == 0) {  
+            botindex = i;  
+            break;  
+        }  
+    }  
+  
+    if (botindex < 0) {  
+        gi.cprintf(NULL, PRINT_HIGH, "No bot named \"%s\" in server.\n", name);  
+        return;  
+    }
+
+	e = &g_edicts[(int)maxclients->value];
+	for ( i = maxclients->value ; i >= 1  ; i--, e--)
+	{
+		if(!e->inuse) continue;
+		client = /*e->client;*/&game.clients[i - 1];
+		if(client == NULL) continue;
+		// the first couple seconds of server time can involve a lot of
+		// freeing and allocating, so relax the replacement policy
+		if (!client->pers.connected && (e->svflags & SVF_MONSTER))
+		{
+			if(client->zc.botindex == botindex)
+			{
+				if(Bot[botindex].spflg != BOT_NEXTLEVEL) Bot[botindex].spflg = BOT_SPAWNNOT;
+				else Bot[botindex].spflg = BOT_SPRESERVED;
+
+				if(zigmode->value) ZIGDeadDropFlag(e);
+
+				gi.bprintf (PRINT_HIGH, "%s disconnected\n", e->client->pers.netname);
+	
+				// send effect
+				gi.WriteByte (svc_muzzleflash);
+				gi.WriteShort (e-g_edicts);
+				gi.WriteByte (MZ_LOGOUT);
+				gi.multicast (e->s.origin, MULTICAST_PVS);
+
+				e->s.modelindex = 0;
+				e->solid = SOLID_NOT;
+
+				if(zigrapple->value)
+					CTFPlayerResetGrapple(e);
+
+				if(ctf->value) {
+
+					if(!zigrapple->value)
+						CTFPlayerResetGrapple(e);
+
+					CTFDeadDropFlag(e);
+					CTFDeadDropTech(e);
+				}
+				gi.linkentity (e);
+
+				e->inuse = false;
+				G_FreeEdict (e);
+
+				if(targetindex)
+				{
+					ent = &g_edicts[1];
+
+					if(ent->inuse)
+					{
+						ent->health = 100;
+						ent->movetype = MOVETYPE_WALK;
+						ent->takedamage = DAMAGE_AIM;
+						ent->target_ent = NULL;
+						ent->solid = SOLID_BBOX;
+						ent->client->ps.pmove.pm_type = PM_NORMAL;
+						ent->client->ps.pmove.pm_flags = PMF_DUCKED;
+						VectorCopy(ent->moveinfo.start_origin,ent->s.origin);
+						VectorCopy(ent->moveinfo.start_origin,ent->s.old_origin);
+					}
+					targetindex = 0;
+				}
+				return;
+			}
+		}
+	}
+	gi.error ("Can't remove bot.");
+}
+
 //----------------------------------------------------------------
 //Level Change Removing
 //

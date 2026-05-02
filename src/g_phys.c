@@ -1,6 +1,7 @@
 // g_phys.c
 
 #include "header/local.h"
+#include "header/bot.h"
 
 /*
 
@@ -891,6 +892,46 @@ void SV_Physics_Step (edict_t *ent)
 	groundentity = ent->groundentity;
 
 	SV_CheckVelocity (ent);
+
+	// Strafe Jumping for Bots during Navigation
+	// This allows bots to traverse the map significantly faster by using 
+	// vector-acceleration techniques when moving between waypoints.
+	if (ENT_IS_BOT(ent) && ent->client->zc.route_trace && !ent->client->zc.first_target 
+		&& groundentity && !ent->waterlevel && !(ent->client->zc.zcstate & STS_WAITSMASK))
+	{
+		// Bots with BOP_STRAFEJUMP == 2 will use strafe jumping for travel
+		if (Bot[ent->client->zc.botindex].param[BOP_STRAFEJUMP] == 2) 
+		{
+			vec3_t v;
+			float dist;
+			
+			// Check distance to current waypoint target
+			VectorSubtract(ent->client->zc.movtarget_pt, ent->s.origin, v);
+			v[2] = 0;
+			dist = VectorLength(v);
+
+			// Only jump if we have momentum and the next waypoint is far enough away
+			if (dist > 250 && (ent->velocity[0]*ent->velocity[0] + ent->velocity[1]*ent->velocity[1]) > 40000) 
+			{
+				float strafe_dir = ((int)(level.time * 1.6) % 2) ? 1.0f : -1.0f;
+				float yaw_rad = ent->client->zc.moveyaw * (M_PI / 180.0f);
+				float offset_rad = 22.0f * (M_PI / 180.0f); // The Q2 strafe-accel sweet spot
+
+				// 1. Execute Jump
+				ent->velocity[2] = VEL_BOT_JUMP;
+				ent->groundentity = NULL;
+				groundentity = NULL; // Force air physics for the rest of this frame
+
+				// 2. Momentum Injection & Vector Sync
+				// Set velocity toward the offset angle to build momentum beyond 300 UPS.
+				ent->velocity[0] = cos(yaw_rad + (offset_rad * strafe_dir)) * 360.0f;
+				ent->velocity[1] = sin(yaw_rad + (offset_rad * strafe_dir)) * 360.0f;
+				
+				gi.sound(ent, CHAN_VOICE, gi.soundindex("*jump1.wav"), 1, ATTN_NORM, 0);
+				PlayerNoise(ent, ent->s.origin, PNOISE_SELF);
+			}
+		}
+	}
 
 	if (groundentity)
 		wasonground = true;

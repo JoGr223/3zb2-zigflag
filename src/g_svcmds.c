@@ -46,6 +46,10 @@ typedef struct
 ipfilter_t	ipfilters[MAX_IPFILTERS];
 int			numipfilters;
 
+void RemoveNameCommand(const char *name) {  
+    RemoveBotByName(name);  
+}
+
 /*
 =================
 StringToFilter
@@ -440,8 +444,71 @@ void	ServerCommand (void)
 	}
 	else if (Q_stricmp (cmd, "rmb") == 0)
 	{
-		if(gi.argc() <= 1) RemoveCommand(1);
-		else RemoveCommand (atoi(gi.argv(2)));
+		if (gi.argc() < 3)
+		{
+			RemoveCommand(1);
+		}
+		else
+		{
+			char *val = gi.argv(2);
+			qboolean is_numeric = true;
+			int i;
+
+			if (!*val) is_numeric = false;
+			for (i = 0; val[i]; i++)
+			{
+				if (val[i] < '0' || val[i] > '9')
+				{
+					is_numeric = false;
+					break;
+				}
+			}
+
+			if (is_numeric)
+			{
+				RemoveCommand(atoi(val));
+			}
+			else
+			{
+				int j;
+				edict_t *ent;
+				qboolean found = false;
+
+				for (j = 1; j <= (int)maxclients->value; j++)
+				{
+					ent = g_edicts + j;
+					if (!ent->inuse || !ent->client || !ENT_IS_BOT(ent))
+						continue;
+
+					// Strip high bits from the bot name for comparison.
+					// Highlighted names (ASCII > 127) don't match standard ASCII console input.
+					char clean_name[16];
+					int k;
+					for (k = 0; k < 15 && ent->client->pers.netname[k]; k++)
+						clean_name[k] = ent->client->pers.netname[k] & 127;
+					clean_name[k] = 0;
+
+					// Match the full clean name only.
+					if (Q_stricmp(clean_name, val) == 0)
+					{
+						int botidx = ent->client->zc.botindex;
+						if (botidx >= 0 && botidx < MAXBOTS)
+							Bot[botidx].spflg = 0; // BOT_SPAWNNOT (0: not spawned)
+
+						// Authoritative removal via the internal ClientDisconnect function.
+						// This bypasses engine-level 'kick' command ambiguity and string matching issues.
+						ClientDisconnect(ent);
+						
+						gi.cprintf(NULL, PRINT_HIGH, "Bot '%s' removed.\n", clean_name);
+						found = true;
+						break;
+					}
+				}
+
+				if (!found)
+					gi.cprintf(NULL, PRINT_HIGH, "Bot '%s' not found.\n", val);
+			}
+		}
 	}
 	else if (Q_stricmp (cmd, "dsp") == 0)
 	{
@@ -456,7 +523,12 @@ void	ServerCommand (void)
 		SVCmd_ListIP_f ();
 	else if (Q_stricmp (cmd, "writeip") == 0)
 		SVCmd_WriteIP_f ();
+	else if (Q_stricmp(cmd, "rmbname") == 0) {  
+    if (gi.argc() < 3)  
+        gi.cprintf(NULL, PRINT_HIGH, "Usage: sv rmbname <name>\n");  
+    else  
+        RemoveNameCommand(gi.argv(2));  
+}
 	else
 		gi.cprintf (NULL, PRINT_HIGH, "Unknown server command \"%s\"\n", cmd);
 }
-

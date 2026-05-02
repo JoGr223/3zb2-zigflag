@@ -1701,20 +1701,35 @@ void Combat_Level0(edict_t *ent,int foundedenemy,int enewep
 FIRED:
 	if(zc->secwep_selected == 2) zc->secwep_selected = 1;
 
-	// Implement Logic Suggestion (Conceptual): Continuous strafe oscillation
-	// Only applies if Dodge is enabled, bot is on ground, not in water, and not in a 'stay fire' state.
-	if (Bot[zc->botindex].param[BOP_DODGE] && ent->groundentity && !ent->waterlevel && trace_priority != TRP_ALLKEEP)
+	// Strafe Jumping AI Implementation:
+	// Bots with the 'Dodge' skill will now strafe jump during combat to build speed and evade.
+	// This simulates the vector-addition exploit used by pro human players.
+	if (Bot[zc->botindex].param[BOP_STRAFEJUMP] >= 1 && ent->groundentity && !ent->waterlevel 
+		&& trace_priority < TRP_ALLKEEP && distance > 150 && !(zc->zcstate & STS_WAITSMASK))
 	{
-		// Alternate strafe direction every 0.8 seconds (1/1.25) based on current aim
-		zc->moveyaw = ent->s.angles[YAW] + (((int)(level.time * 1.25) % 2) ? 90 : -90);
+		// Toggle strafe direction based on time to create a zig-zag jump pattern
+		float strafe_dir = ((int)(level.time * 1.6) % 2) ? 1.0f : -1.0f;
+
+		// 1. Execute the Jump
+		ent->velocity[2] = VEL_BOT_JUMP;
+		ent->groundentity = NULL; // Enter air physics state
+
+		// 2. Momentum Gain
+		// Add a speed boost to simulate the wish-velocity gain from strafe jumping.
+		// This compensates for the bot using SV_Physics_Step instead of the Pmove engine.
+		VectorScale(ent->velocity, 1.15, ent->velocity);
+
+		gi.sound(ent, CHAN_VOICE, gi.soundindex("*jump1.wav"), 1, ATTN_NORM, 0);
+		PlayerNoise(ent, ent->s.origin, PNOISE_SELF);
+		Set_BotAnim(ent, ANIM_JUMP, FRAME_jump1 - 1, FRAME_jump6);
+
+		// 3. Vector Sync: Offset moveyaw by ~22 degrees (the sweet spot for Q2 strafe jumping)
+		zc->moveyaw = ent->s.angles[YAW] + (22.0f * strafe_dir);
 
 		if (zc->moveyaw > 180) zc->moveyaw -= 360;
 		else if (zc->moveyaw < -180) zc->moveyaw += 360;
 
-		// Add a bit of randomness (10% chance to stand still and fire accurately)
-		if (random() < 0.1) ent->moveinfo.speed = 0;
-
-		trace_priority = TRP_MOVEKEEP; // Force movement to use moveyaw while preserving aiming angles
+		trace_priority = TRP_MOVEKEEP; // Force the AI to move in the offset direction
 	}
 	
 	//チキンやろう========================

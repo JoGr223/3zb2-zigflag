@@ -11,6 +11,7 @@ void		Bot_LevelChange();
 void		Load_BotInfo();
 void		Bot_SpawnCall();
 void		RemoveBot();
+void 		RemoveBotByName(const char *name);
 void		SpawnBotReserving();
 
 //weapon
@@ -335,6 +336,7 @@ typedef struct
 #define BOP_NOISECHK	13	//noisecheck
 #define BOP_NOSTHRWATER	14	//can't see through water
 #define BOP_TEAMWORK	15	//teamwork
+#define BOP_STRAFEJUMP	16	//strafe jumping behavior (0: none, 1: combat only, 2: combat and navigation)
 
 typedef	struct
 {
@@ -344,6 +346,8 @@ typedef	struct
 	int		spflg;				//spawned flag 0-not 1-waiting 2-spawned
 	int		team;				//team NO. 0-noteam 1-RED 2-BLUE
 	int		arena;				//if arena is on
+	// MAXBOP is defined as BOP_STRAFEJUMP + 1
+#define MAXBOP (BOP_STRAFEJUMP + 1)
 	unsigned char	param[MAXBOP];		//Params
 }	botinfo_t;
 
