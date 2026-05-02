@@ -46,7 +46,9 @@ See [CONFIG.md](CONFIG.md) for full configuration details.
 
 ### Quick Start
 
-Place route chain files (`.chn`) in `3zb2/chdtm/` for bot navigation on your maps. Many popular maps are included. Additional routes can be created in-game via the `chedit` command (see [CONFIG.md](CONFIG.md)).
+Bot navigation is automatic. At map load, walkable areas are flood-filled from spawn points and items to build a navigation graph. No manual route files are needed.
+
+Legacy route chain files (`.chn`/`.chf`) can still be used by setting `nav_manual 1` in the console. Routes can be created in-game via the `chedit` command (see [CONFIG.md](CONFIG.md)).
 
 ## Building from Source
 

@@ -74,6 +74,7 @@ cvar_t	*zigrapple;
 cvar_t	*zigintro;
 cvar_t	*spawnbotfar;
 cvar_t	*respawn_protection;
+cvar_t	*nav_manual;
 int	flagbounce;
 float	spawncycle;
 float	ctfjob_update;

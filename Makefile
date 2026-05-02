@@ -157,6 +157,7 @@ build/%.o: %.c
 	src/bot/bot.o \
 	src/bot/fire.o \
 	src/bot/func.o \
+	src/bot/nav_auto.o \
 	src/bot/za.o \
 	src/g_chase.o \
 	src/g_cmds.o \

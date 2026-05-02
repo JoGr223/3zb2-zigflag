@@ -1,5 +1,6 @@
 #include "header/local.h"
 #include "header/bot.h"
+#include "header/nav_auto.h"
 //PON
 qboolean bots_moveok ( edict_t *ent,float ryaw,vec3_t pos,float dist,float *bottom);
 //PON
@@ -3054,22 +3055,28 @@ void CTFSetupNavSpawn()
 	//if(!ctf->value) sprintf(name,"%s/chdtm/%s.chn",gamepath->string,level.mapname);
 	//else sprintf(name,"%s/chctf/%s.chf",gamepath->string,level.mapname);
 
+	/* When nav_manual is off (default), always auto-generate navigation
+	 * for all maps regardless of whether a chain file exists.
+	 * Set "nav_manual 1" to use legacy .chn/.chf chain files. */
+	if(!nav_manual->value)
+	{
+		gi.dprintf("Nav: auto-generating navigation (set nav_manual 1 for legacy chain files).\n");
+		Nav_AutoGenerate();
+		return;
+	}
+
 	fpout = fopen(name,"rb");
 	if(fpout == NULL)
 	{
 
-		if(!ctf->value) {
+		if(!ctf->value)
 			gi.dprintf("Chaining: file %s/chdtm/%s.chn not found.\n",gamepath->string,level.mapname);
-			if(zigmode->value)
-			{
-				gi.dprintf("\nChaining file required for zigmode.\n\n");
-				gi.error (ERR_FATAL);
-			}
-		}
-		else gi.dprintf("Chaining: file %s/chctf/%s.chf not found.\n",gamepath->string,level.mapname);
+		else
+			gi.dprintf("Chaining: file %s/chctf/%s.chf not found.\n",gamepath->string,level.mapname);
 
-		//if(!ctf->value) gi.dprintf("Chaining: file %s.chn not found.\n",level.mapname);
-		//else gi.dprintf("Chaining: file %s.chf not found.\n",level.mapname);
+		gi.dprintf("Chaining: falling back to auto-generated navigation.\n");
+		Nav_AutoGenerate();
+		return;
 	}
 	else
 	{

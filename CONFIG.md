@@ -44,6 +44,7 @@ Route chain files (`.chn`/`.chf`) contain object and level navigation data. See 
 | `fixflaws` | Fix known Quake 2 gameplay flaws | `1` (on) |
 | `playerid` | Identify player in crosshair | `0` (off) |
 | `weaponswap` | Auto-switch to better weapon on pickup | `0` (off) |
+| `nav_manual` | Use legacy manual chain files instead of auto-navigation | `0` (off) |
 
 ### Live-Updated
 

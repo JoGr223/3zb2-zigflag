@@ -96,6 +96,9 @@ void SetBotFlag1(edict_t *ent);	//チーム1の旗
 void SetBotFlag2(edict_t *ent);  //チーム2の旗
 void CTFSetupNavSpawn();	//ナビの設置
 
+//auto navigation
+void Nav_AutoGenerate(void);
+
 //ctf
 void CTFJobAssign (void);		//job assign
 
