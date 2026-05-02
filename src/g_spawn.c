@@ -1,6 +1,7 @@
 
 #include "header/local.h"
 #include "header/bot.h"
+#include "header/nav_astar.h"
 typedef struct
 {
 	char	*name;
@@ -1070,6 +1071,7 @@ void SpawnEntities (char *mapname, char *entities, char *spawnpoint)
 //ZOID
 
 //ponko
+	Nav_InitStates();	//A* nav state init
 	CTFSetupNavSpawn();	//ナビの設置
 	if(!chedit->value) G_FindItemLink();	//アイテムのリンク(通常時のみ)
 

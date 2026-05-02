@@ -637,6 +637,7 @@ extern	cvar_t  *respawn_protection;
 extern	cvar_t  *spawnbotfar;
 extern	cvar_t  *killerflag;
 extern	cvar_t  *weaponswap;
+extern	cvar_t	*nav_manual;
 extern	float	spawncycle;
 extern	int	flagbounce;
 //ponpoko

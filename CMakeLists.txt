@@ -37,6 +37,8 @@ endif()
 set(3zb2-Source
 	src/bot/fire.c
 	src/bot/func.c
+	src/bot/nav_astar.c
+	src/bot/nav_auto.c
 	src/bot/za.c
 	src/bot/bot.c
 	src/g_chase.c
@@ -69,6 +71,8 @@ set(3zb2-Source
 set(3zb2-Header
 	src/header/bot.h
 	src/header/botstr.h
+	src/header/nav_astar.h
+	src/header/nav_auto.h
 	src/header/ctf.h
 	src/header/game.h
 	src/header/local.h

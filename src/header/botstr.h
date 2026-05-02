@@ -75,6 +75,10 @@ typedef struct zgcl_s
 	qboolean	havetarget;		//target on/off
 	int			targetindex;
 
+	//A* dynamic pathing
+	qboolean	nav_active;		//using A* pathfinding
+	float		nav_replan_time;	//next replan time
+
 	//battle
 	edict_t		*last_target;	//old enemy
 	vec3_t		last_pos;		//old origin
