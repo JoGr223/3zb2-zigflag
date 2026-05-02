@@ -1,6 +1,7 @@
 #include "../header/local.h"
 #include "../header/player.h"
 #include "../header/bot.h"
+#include "../header/nav_astar.h"
 
 int		cumsindex;
 
@@ -691,6 +692,10 @@ void player_die (edict_t *self, edict_t *inflictor, edict_t *attacker, int damag
 	}
 
 	self->deadflag = DEAD_DEAD;
+
+	//record death for A* danger zones
+	if(self->svflags & SVF_MONSTER)
+		Nav_RecordDeath(self);
 
 	//routing last index move
 	if(chedit->value && self == &g_edicts[1]) Move_LastRouteIndex();

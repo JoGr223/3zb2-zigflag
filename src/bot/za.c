@@ -1,6 +1,7 @@
 #include "../header/bot.h"
 #include "../header/shared.h"
 #include "../header/player.h"
+#include "../header/nav_astar.h"
 
 qboolean	pickup_pri;
 
@@ -3508,6 +3509,33 @@ gi.bprintf(PRINT_HIGH,"ladder OFF2!!\n");
 
 	if(1/*!(zc->zcstate & STS_WAITSMASK)*/)
 	{
+		/* --- A* dynamic pathfinding --- */
+		if(!nav_manual->value && CurrentIndex > 0 && !chedit->value)
+		{
+			/* Plan or replan A* path when needed */
+			if(!Nav_HasPath(ent) || zc->nav_replan_time <= level.time)
+			{
+				int start_nd = Nav_NearestNode(ent->s.origin);
+				int goal_nd = Nav_SelectGoal(ent);
+				if(start_nd >= 0 && goal_nd >= 0)
+				{
+					Nav_PlanPath(ent, start_nd, goal_nd);
+					zc->nav_active = true;
+					zc->nav_replan_time = level.time + NAV_REPLAN_SEC
+						+ random() * 2.0f;
+				}
+			}
+
+			/* Use A* path to set routeindex */
+			if(Nav_HasPath(ent))
+			{
+				int next = Nav_NextNode(ent);
+				if(next >= 0 && next < CurrentIndex)
+					zc->routeindex = next;
+			}
+		}
+		/* --- end A* --- */
+
 		//ルートトレース用index検索
 		if(!zc->route_trace && zc->rt_releasetime <= level.time)
 		{
@@ -3797,7 +3825,17 @@ gi.bprintf(PRINT_HIGH,"OFF 10\n");
 									}
 								}
 //アイテムリンクチェック<<
-								zc->routeindex++;
+								if(zc->nav_active && Nav_HasPath(ent))
+								{
+									Nav_AdvancePath(ent);
+									k = Nav_NextNode(ent);
+									if(k >= 0 && k < CurrentIndex)
+										zc->routeindex = k;
+									else
+										zc->routeindex++;
+								}
+								else
+									zc->routeindex++;
 								//not a normal pod
 								if(zc->routeindex < CurrentIndex)
 								{
@@ -3891,7 +3929,17 @@ gi.bprintf(PRINT_HIGH,"OFF 10\n");
 												}
 											}
 //アイテムリンクチェック<<
-											zc->routeindex++;
+											if(zc->nav_active && Nav_HasPath(ent))
+											{
+												Nav_AdvancePath(ent);
+												k = Nav_NextNode(ent);
+												if(k >= 0 && k < CurrentIndex)
+													zc->routeindex = k;
+												else
+													zc->routeindex++;
+											}
+											else
+												zc->routeindex++;
 											if(i == 2) ent->client->ps.pmove.pm_flags |= PMF_DUCKED;
 										
 											Get_RouteOrigin(zc->routeindex,v);
