@@ -1700,6 +1700,22 @@ void Combat_Level0(edict_t *ent,int foundedenemy,int enewep
 
 FIRED:
 	if(zc->secwep_selected == 2) zc->secwep_selected = 1;
+
+	// Implement Logic Suggestion (Conceptual): Continuous strafe oscillation
+	// Only applies if Dodge is enabled, bot is on ground, not in water, and not in a 'stay fire' state.
+	if (Bot[zc->botindex].param[BOP_DODGE] && ent->groundentity && !ent->waterlevel && trace_priority != TRP_ALLKEEP)
+	{
+		// Alternate strafe direction every 0.8 seconds (1/1.25) based on current aim
+		zc->moveyaw = ent->s.angles[YAW] + (((int)(level.time * 1.25) % 2) ? 90 : -90);
+
+		if (zc->moveyaw > 180) zc->moveyaw -= 360;
+		else if (zc->moveyaw < -180) zc->moveyaw += 360;
+
+		// Add a bit of randomness (10% chance to stand still and fire accurately)
+		if (random() < 0.1) ent->moveinfo.speed = 0;
+
+		trace_priority = TRP_MOVEKEEP; // Force movement to use moveyaw while preserving aiming angles
+	}
 	
 	//チキンやろう========================
 	if(zc->battlemode == FIRE_CHIKEN)
@@ -1795,4 +1811,3 @@ void UpdateExplIndex(edict_t* ent)
 		if(!mod && ExplIndex[i] == NULL) {ExplIndex[i] = ent;mod = true;}
 	}
 }
-
