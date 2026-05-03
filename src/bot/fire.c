@@ -1752,7 +1752,8 @@ FIRED:
 		if (zc->fbattlecount == 0.0f || level.time >= fabsf(zc->fbattlecount))  
 		{  
 			//float interval = 0.2f + random() * 0.4f;  // 0.2–0.6s random interval  
-			float interval = 0.25f + random() * 0.20f;  // 0.25–0.45s random interval  
+			//float interval = 0.25f + random() * 0.20f;  // 0.25–0.45s random interval  
+			float interval = 0.2f + random() * 0.3f;
 			float next = level.time + interval;  
   
 			if (zc->fbattlecount == 0.0f)  
