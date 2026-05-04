@@ -694,6 +694,7 @@ extern	gitem_t	itemlist[];
 //
 // g_cmds.c
 //
+void Cmd_Stats_f(edict_t *ent, qboolean check_other);
 void Cmd_Help_f (edict_t *ent);
 void Cmd_Score_f (edict_t *ent);
 
@@ -901,6 +902,12 @@ void DeathmatchScoreboardMessage (edict_t *client, edict_t *killer);
 void Flag_Msg(char *response, size_t length);
 
 //
+// g_cmds.c
+//
+void Cmd_Stats_f(edict_t *ent, qboolean check_other);
+void Cmd_StatsAll_f(edict_t *ent);
+
+//
 // g_pweapon.c
 //
 void PlayerNoise(edict_t *who, vec3_t where, int type);
@@ -1048,6 +1055,33 @@ typedef struct zgcl_s
 
 */
 #include "botstr.h"
+
+typedef enum {
+	FRAG_UNKNOWN,
+	FRAG_BLASTER,
+	FRAG_SHOTGUN,
+	FRAG_SUPERSHOTGUN,
+	FRAG_MACHINEGUN,
+	FRAG_CHAINGUN,
+	FRAG_GRENADES,
+	FRAG_GRENADELAUNCHER,
+	FRAG_ROCKETLAUNCHER,
+	FRAG_HYPERBLASTER,
+	FRAG_RAILGUN,
+	FRAG_BFG,
+	FRAG_TOTAL
+} frag_t;
+
+typedef struct {
+	int kills;
+	int deaths;
+	int suicides;
+	int hits;
+	int atts;
+} fragstat_t;
+
+extern const int mod_to_frag[64];
+
 // client data that stays across deathmatch respawns
 typedef struct
 {
@@ -1075,6 +1109,11 @@ typedef struct
 	int			helpchanged;
 
 	qboolean	spectator;			// client is a spectator
+
+	fragstat_t	frags[FRAG_TOTAL];
+	int			damage_given;
+	int			damage_recvd;
+	int			last_hit_framenum[FRAG_TOTAL];
 } client_respawn_t;
 
 // this structure is cleared on each PutClientInServer(),

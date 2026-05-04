@@ -1072,6 +1072,175 @@ void UndoChain(edict_t *ent ,int step)
 
 /*
 =================
+Cmd_Stats_f
+=================
+*/
+void Cmd_Stats_f(edict_t *ent, qboolean check_other)
+{
+	static const char *weapon_names[] = {
+		"Unknown", "Blaster", "Shotgun", "Super Shotgun", "Machinegun",
+		"Chaingun", "Grenades", "Grenade Launcher", "Rocket Launcher",
+		"HyperBlaster", "Railgun", "BFG10K"
+	};
+	int i, sum_atts = 0, sum_hits = 0, sum_kills = 0, sum_deaths = 0, sum_suicides = 0;
+	int acc, sum_acc;
+	fragstat_t *frags;
+	edict_t *target = ent;
+
+	if (check_other && gi.argc() > 1)
+	{
+		char *name = gi.argv(1);
+		edict_t *found = NULL;
+
+		// Exact match
+		for (i = 1; i <= game.maxclients; i++)
+		{
+			edict_t *cl_ent = &g_edicts[i];
+			if (!cl_ent->inuse || !cl_ent->client) continue;
+			if (Q_stricmp(cl_ent->client->pers.netname, name) == 0)
+			{
+				found = cl_ent;
+				break;
+			}
+		}
+
+		// Partial match
+		if (!found)
+		{
+			for (i = 1; i <= game.maxclients; i++)
+			{
+				edict_t *cl_ent = &g_edicts[i];
+				if (!cl_ent->inuse || !cl_ent->client) continue;
+				if (Q_strncasecmp(cl_ent->client->pers.netname, name, strlen(name)) == 0)
+				{
+					found = cl_ent;
+					break;
+				}
+			}
+		}
+
+		if (!found)
+		{
+			gi.cprintf(ent, PRINT_HIGH, "Player %s not found.\n", name);
+			return;
+		}
+		target = found;
+	}
+
+	frags = target->client->resp.frags;
+
+	gi.cprintf(ent, PRINT_HIGH, "\nAccuracy stats for %s:\n", target->client->pers.netname);
+	gi.cprintf(ent, PRINT_HIGH, "Weapon             Acc   Hit/Atts   Kills Deaths Suic\n");
+	gi.cprintf(ent, PRINT_HIGH, "-----------------------------------------------------\n");
+
+	for (i = FRAG_BLASTER; i <= FRAG_BFG; i++)
+	{
+		if (frags[i].atts == 0 && frags[i].kills == 0 && frags[i].deaths == 0)
+			continue;
+
+		acc = frags[i].atts > 0 ? (int)(((float)frags[i].hits * 100.0f / (float)frags[i].atts) + 0.5f) : 0;
+		if (acc > 100) acc = 100;
+
+		gi.cprintf(ent, PRINT_HIGH, "%-16s %3d%% %5d/%-5d  %4d  %4d  %3d\n",
+			weapon_names[i], acc, frags[i].hits, frags[i].atts,
+			frags[i].kills, frags[i].deaths, frags[i].suicides);
+
+		sum_atts += frags[i].atts;
+		sum_hits += frags[i].hits;
+		sum_kills += frags[i].kills;
+		sum_deaths += frags[i].deaths;
+		sum_suicides += frags[i].suicides;
+	}
+
+	sum_acc = sum_atts > 0 ? (int)(((float)sum_hits * 100.0f / (float)sum_atts) + 0.5f) : 0;
+	if (sum_acc > 100) sum_acc = 100;
+
+	gi.cprintf(ent, PRINT_HIGH, "-----------------------------------------------------\n");
+	gi.cprintf(ent, PRINT_HIGH, "Total:           %3d%% %5d/%-5d  %4d  %4d  %3d\n",
+		sum_acc, sum_hits, sum_atts, sum_kills, sum_deaths, sum_suicides);
+
+	if (target->client->resp.damage_given > 0 || target->client->resp.damage_recvd > 0)
+	{
+		gi.cprintf(ent, PRINT_HIGH, "\nDamage Given: %d  Received: %d\n",
+			target->client->resp.damage_given, target->client->resp.damage_recvd);
+	}
+}
+
+/*
+=================
+Cmd_StatsAll_f
+=================
+*/
+void Cmd_StatsAll_f(edict_t *ent)
+{
+	int i, j;
+	int num_players = 0;
+	edict_t *players[256];
+	edict_t *temp;
+
+	for (i = 1; i <= game.maxclients; i++)
+	{
+		if (g_edicts[i].inuse && g_edicts[i].client)
+		{
+			players[num_players++] = &g_edicts[i];
+		}
+	}
+
+	for (i = 0; i < num_players - 1; i++)
+	{
+		for (j = i + 1; j < num_players; j++)
+		{
+			if (Q_stricmp(players[i]->client->pers.netname, players[j]->client->pers.netname) > 0)
+			{
+				temp = players[i];
+				players[i] = players[j];
+				players[j] = temp;
+			}
+		}
+	}
+
+	gi.cprintf(ent, PRINT_HIGH, "\n%-9s %4s %4s %4s %4s %4s %4s %4s %4s %4s %4s\n",
+		"Name", "RA", "CH", "RL", "MG", "SG", "SS", "HB", "GR", "GL", "BL");
+	gi.cprintf(ent, PRINT_HIGH, "------------------------------------------------------------\n");
+
+	for (i = 0; i < num_players; i++)
+	{
+		edict_t *p = players[i];
+		fragstat_t *f = p->client->resp.frags;
+		int a_rail = f[FRAG_RAILGUN].atts > 0 ? (int)(((float)f[FRAG_RAILGUN].hits * 100.0f / (float)f[FRAG_RAILGUN].atts) + 0.5f) : 0;
+		int a_chain = f[FRAG_CHAINGUN].atts > 0 ? (int)(((float)f[FRAG_CHAINGUN].hits * 100.0f / (float)f[FRAG_CHAINGUN].atts) + 0.5f) : 0;
+		int a_rl = f[FRAG_ROCKETLAUNCHER].atts > 0 ? (int)(((float)f[FRAG_ROCKETLAUNCHER].hits * 100.0f / (float)f[FRAG_ROCKETLAUNCHER].atts) + 0.5f) : 0;
+		int a_mg = f[FRAG_MACHINEGUN].atts > 0 ? (int)(((float)f[FRAG_MACHINEGUN].hits * 100.0f / (float)f[FRAG_MACHINEGUN].atts) + 0.5f) : 0;
+		int a_sg = f[FRAG_SHOTGUN].atts > 0 ? (int)(((float)f[FRAG_SHOTGUN].hits * 100.0f / (float)f[FRAG_SHOTGUN].atts) + 0.5f) : 0;
+		int a_ss = f[FRAG_SUPERSHOTGUN].atts > 0 ? (int)(((float)f[FRAG_SUPERSHOTGUN].hits * 100.0f / (float)f[FRAG_SUPERSHOTGUN].atts) + 0.5f) : 0;
+		int a_hb = f[FRAG_HYPERBLASTER].atts > 0 ? (int)(((float)f[FRAG_HYPERBLASTER].hits * 100.0f / (float)f[FRAG_HYPERBLASTER].atts) + 0.5f) : 0;
+		int a_gr = f[FRAG_GRENADES].atts > 0 ? (int)(((float)f[FRAG_GRENADES].hits * 100.0f / (float)f[FRAG_GRENADES].atts) + 0.5f) : 0;
+		int a_gl = f[FRAG_GRENADELAUNCHER].atts > 0 ? (int)(((float)f[FRAG_GRENADELAUNCHER].hits * 100.0f / (float)f[FRAG_GRENADELAUNCHER].atts) + 0.5f) : 0;
+		int a_bl = f[FRAG_BLASTER].atts > 0 ? (int)(((float)f[FRAG_BLASTER].hits * 100.0f / (float)f[FRAG_BLASTER].atts) + 0.5f) : 0;
+
+		if (a_rail > 100) a_rail = 100;
+		if (a_chain > 100) a_chain = 100;
+		if (a_rl > 100) a_rl = 100;
+		if (a_mg > 100) a_mg = 100;
+		if (a_sg > 100) a_sg = 100;
+		if (a_ss > 100) a_ss = 100;
+		if (a_hb > 100) a_hb = 100;
+		if (a_gr > 100) a_gr = 100;
+		if (a_gl > 100) a_gl = 100;
+		if (a_bl > 100) a_bl = 100;
+
+		char name[10];
+		strncpy(name, p->client->pers.netname, 9);
+		name[9] = '\0';
+
+		gi.cprintf(ent, PRINT_HIGH, "%-9s %3d%% %3d%% %3d%% %3d%% %3d%% %3d%% %3d%% %3d%% %3d%% %3d%%\n",
+			name,
+			a_rail, a_chain, a_rl, a_mg, a_sg, a_ss, a_hb, a_gr, a_gl, a_bl);
+	}
+}
+
+/*
+=================
 ClientCommand
 =================
 */
@@ -1107,6 +1276,16 @@ void ClientCommand (edict_t *ent)
 	if (Q_stricmp (cmd, "help") == 0)
 	{
 		Cmd_Help_f (ent);
+		return;
+	}
+	if (Q_stricmp (cmd, "stats") == 0 || Q_stricmp (cmd, "accuracy") == 0)
+	{
+		Cmd_Stats_f (ent, true);
+		return;
+	}
+	if (Q_stricmp (cmd, "stats-all") == 0)
+	{
+		Cmd_StatsAll_f (ent);
 		return;
 	}
 

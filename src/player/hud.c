@@ -59,6 +59,9 @@ void MoveClientToIntermission (edict_t *ent)
 			DeathmatchScoreboardMessage (ent, NULL);
 
 		gi.unicast (ent, true);
+
+		Cmd_Stats_f (ent, false);
+		Cmd_StatsAll_f (ent);
 	}
 
 }
