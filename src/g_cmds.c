@@ -36,6 +36,11 @@ void SaveStatsSnapshot(void)
 	}
 }
 
+void ClearStatsCache(void)
+{
+	num_cached_stats = 0;
+}
+
 char *ClientTeam (edict_t *ent)
 {
 	char		*p;
@@ -1250,7 +1255,7 @@ void Cmd_StatsAll_f(edict_t *ent)
 		"Name", "ki", "RA%", "CH%", "RL%", "MG%", "SG%", "SS%", "HB%", "GR%", "GL%", "BL%");
 	gi.cprintf(ent, PRINT_HIGH, "--------------------------------------------------\n");
 
-	if (num_cached_stats > 0)
+	if (level.intermissiontime && num_cached_stats > 0)
 	{
 		// Sort a local index array by kills (descending)
 		int order[MAX_CACHED_STATS];

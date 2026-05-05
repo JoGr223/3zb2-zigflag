@@ -967,6 +967,7 @@ void SpawnEntities (char *mapname, char *entities, char *spawnpoint)
 //ponko
 
 	Bot_LevelChange();
+	ClearStatsCache();
 
 	skill_level = floor (skill->value);
 	if (skill_level < 0)
