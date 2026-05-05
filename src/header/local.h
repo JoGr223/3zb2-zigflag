@@ -906,6 +906,7 @@ void Flag_Msg(char *response, size_t length);
 //
 void Cmd_Stats_f(edict_t *ent, qboolean check_other);
 void Cmd_StatsAll_f(edict_t *ent);
+void SaveStatsSnapshot(void);
 
 //
 // g_pweapon.c

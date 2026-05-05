@@ -2,6 +2,40 @@
 #include "header/player.h"
 #include "header/bot.h"
 
+// ---------------------------------------------------------------------------
+// Cached stats snapshot: saved at intermission so 'stats <name>' still works
+// after bots have disconnected.
+// ---------------------------------------------------------------------------
+#define MAX_CACHED_STATS 64
+
+typedef struct {
+	char		name[32];
+	fragstat_t	frags[FRAG_TOTAL];
+	int			damage_given;
+	int			damage_recvd;
+} cached_stat_entry_t;
+
+static cached_stat_entry_t cached_stats[MAX_CACHED_STATS];
+static int				num_cached_stats = 0;
+
+void SaveStatsSnapshot(void)
+{
+	int i, j;
+	num_cached_stats = 0;
+	for (i = 1; i <= game.maxclients && num_cached_stats < MAX_CACHED_STATS; i++)
+	{
+		edict_t *cl = &g_edicts[i];
+		if (!cl->inuse || !cl->client) continue;
+		if (!cl->client->pers.netname[0]) continue;	// skip empty slots
+		cached_stat_entry_t *e = &cached_stats[num_cached_stats++];
+		strncpy(e->name, cl->client->pers.netname, sizeof(e->name) - 1);
+		e->name[sizeof(e->name) - 1] = '\0';
+		for (j = 0; j < FRAG_TOTAL; j++) e->frags[j] = cl->client->resp.frags[j];
+		e->damage_given = cl->client->resp.damage_given;
+		e->damage_recvd = cl->client->resp.damage_recvd;
+	}
+}
+
 char *ClientTeam (edict_t *ent)
 {
 	char		*p;
@@ -1121,7 +1155,40 @@ void Cmd_Stats_f(edict_t *ent, qboolean check_other)
 
 		if (!found)
 		{
-			gi.cprintf(ent, PRINT_HIGH, "Player %s not found.\n", name);
+			// Not currently connected -- check snapshot cache from last match
+			for (i = 0; i < num_cached_stats; i++)
+			{
+				if (Q_stricmp(cached_stats[i].name, name) == 0)
+				{
+					// Print directly from cache and return
+					cached_stat_entry_t *e = &cached_stats[i];
+					gi.cprintf(ent, PRINT_HIGH, "\nAccuracy stats for %s (last match):\n", e->name);
+					gi.cprintf(ent, PRINT_HIGH, "Weapon             Acc   Hit/Atts   Kills Deaths Suic\n");
+					gi.cprintf(ent, PRINT_HIGH, "-----------------------------------------------------\n");
+					int s_atts = 0, s_hits = 0, s_kills = 0, s_deaths = 0, s_suicides = 0, s_acc;
+					for (i = FRAG_BLASTER; i <= FRAG_BFG; i++)
+					{
+						if (e->frags[i].atts == 0 && e->frags[i].kills == 0 && e->frags[i].deaths == 0) continue;
+						int ac = e->frags[i].atts > 0 ? (int)(((float)e->frags[i].hits * 100.0f / (float)e->frags[i].atts) + 0.5f) : 0;
+						if (ac > 100) ac = 100;
+						gi.cprintf(ent, PRINT_HIGH, "%-16s %3d%% %5d/%-5d  %4d  %4d  %3d\n",
+							weapon_names[i], ac, e->frags[i].hits, e->frags[i].atts,
+							e->frags[i].kills, e->frags[i].deaths, e->frags[i].suicides);
+						s_atts += e->frags[i].atts; s_hits += e->frags[i].hits;
+						s_kills += e->frags[i].kills; s_deaths += e->frags[i].deaths;
+						s_suicides += e->frags[i].suicides;
+					}
+					s_acc = s_atts > 0 ? (int)(((float)s_hits * 100.0f / (float)s_atts) + 0.5f) : 0;
+					if (s_acc > 100) s_acc = 100;
+					gi.cprintf(ent, PRINT_HIGH, "-----------------------------------------------------\n");
+					gi.cprintf(ent, PRINT_HIGH, "Total:           %3d%% %5d/%-5d  %4d  %4d  %3d\n",
+						s_acc, s_hits, s_atts, s_kills, s_deaths, s_suicides);
+					if (e->damage_given > 0 || e->damage_recvd > 0)
+						gi.cprintf(ent, PRINT_HIGH, "\nDamage Given: %d  Received: %d\n", e->damage_given, e->damage_recvd);
+					return;
+				}
+			}
+			gi.cprintf(ent, PRINT_HIGH, "Player '%s' not found (not in game and no cached stats).\n", name);
 			return;
 		}
 		target = found;
@@ -1173,71 +1240,96 @@ Cmd_StatsAll_f
 */
 void Cmd_StatsAll_f(edict_t *ent)
 {
-	int i, j;
-	int num_players = 0;
-	edict_t *players[256];
-	edict_t *temp;
+	int i, j, x;
 
-	for (i = 1; i <= game.maxclients; i++)
-	{
-		if (g_edicts[i].inuse && g_edicts[i].client)
-		{
-			players[num_players++] = &g_edicts[i];
-		}
-	}
+	// Helper macro: compute accuracy % from fragstat
+#define ACC(f, w) ((f)[w].atts > 0 ? (int)(((float)(f)[w].hits * 100.0f / (float)(f)[w].atts) + 0.5f) : 0)
+#define CAPV(v)   ((v) > 100 ? 100 : (v))
 
-	for (i = 0; i < num_players - 1; i++)
+	gi.cprintf(ent, PRINT_HIGH, "\n%-9s %2s %3s %3s %3s %3s %3s %3s %3s %3s %3s %3s\n",
+		"Name", "ki", "RA%", "CH%", "RL%", "MG%", "SG%", "SS%", "HB%", "GR%", "GL%", "BL%");
+	gi.cprintf(ent, PRINT_HIGH, "--------------------------------------------------\n");
+
+	if (num_cached_stats > 0)
 	{
-		for (j = i + 1; j < num_players; j++)
+		// Sort a local index array by kills (descending)
+		int order[MAX_CACHED_STATS];
+		for (i = 0; i < num_cached_stats; i++) order[i] = i;
+		for (i = 0; i < num_cached_stats - 1; i++)
 		{
-			if (Q_stricmp(players[i]->client->pers.netname, players[j]->client->pers.netname) > 0)
+			for (j = i + 1; j < num_cached_stats; j++)
 			{
-				temp = players[i];
-				players[i] = players[j];
-				players[j] = temp;
+				int k1 = 0, k2 = 0;
+				for (x = 0; x < FRAG_TOTAL; x++) k1 += cached_stats[order[i]].frags[x].kills;
+				for (x = 0; x < FRAG_TOTAL; x++) k2 += cached_stats[order[j]].frags[x].kills;
+				if (k1 < k2) { int tmp = order[i]; order[i] = order[j]; order[j] = tmp; }
 			}
 		}
+
+		for (i = 0; i < num_cached_stats; i++)
+		{
+			cached_stat_entry_t *e = &cached_stats[order[i]];
+			fragstat_t *f = e->frags;
+			int total_kills = 0;
+			for (x = 0; x < FRAG_TOTAL; x++) total_kills += f[x].kills;
+
+			char name[10];
+			strncpy(name, e->name, 9); name[9] = '\0';
+
+			gi.cprintf(ent, PRINT_HIGH, "%-9s %2d %3d %3d %3d %3d %3d %3d %3d %3d %3d %3d\n",
+				name, total_kills,
+				CAPV(ACC(f, FRAG_RAILGUN)), CAPV(ACC(f, FRAG_CHAINGUN)),
+				CAPV(ACC(f, FRAG_ROCKETLAUNCHER)), CAPV(ACC(f, FRAG_MACHINEGUN)),
+				CAPV(ACC(f, FRAG_SHOTGUN)), CAPV(ACC(f, FRAG_SUPERSHOTGUN)),
+				CAPV(ACC(f, FRAG_HYPERBLASTER)), CAPV(ACC(f, FRAG_GRENADES)),
+				CAPV(ACC(f, FRAG_GRENADELAUNCHER)), CAPV(ACC(f, FRAG_BLASTER)));
+		}
 	}
-
-	gi.cprintf(ent, PRINT_HIGH, "\n%-9s %4s %4s %4s %4s %4s %4s %4s %4s %4s %4s\n",
-		"Name", "RA", "CH", "RL", "MG", "SG", "SS", "HB", "GR", "GL", "BL");
-	gi.cprintf(ent, PRINT_HIGH, "------------------------------------------------------------\n");
-
-	for (i = 0; i < num_players; i++)
+	else
 	{
-		edict_t *p = players[i];
-		fragstat_t *f = p->client->resp.frags;
-		int a_rail = f[FRAG_RAILGUN].atts > 0 ? (int)(((float)f[FRAG_RAILGUN].hits * 100.0f / (float)f[FRAG_RAILGUN].atts) + 0.5f) : 0;
-		int a_chain = f[FRAG_CHAINGUN].atts > 0 ? (int)(((float)f[FRAG_CHAINGUN].hits * 100.0f / (float)f[FRAG_CHAINGUN].atts) + 0.5f) : 0;
-		int a_rl = f[FRAG_ROCKETLAUNCHER].atts > 0 ? (int)(((float)f[FRAG_ROCKETLAUNCHER].hits * 100.0f / (float)f[FRAG_ROCKETLAUNCHER].atts) + 0.5f) : 0;
-		int a_mg = f[FRAG_MACHINEGUN].atts > 0 ? (int)(((float)f[FRAG_MACHINEGUN].hits * 100.0f / (float)f[FRAG_MACHINEGUN].atts) + 0.5f) : 0;
-		int a_sg = f[FRAG_SHOTGUN].atts > 0 ? (int)(((float)f[FRAG_SHOTGUN].hits * 100.0f / (float)f[FRAG_SHOTGUN].atts) + 0.5f) : 0;
-		int a_ss = f[FRAG_SUPERSHOTGUN].atts > 0 ? (int)(((float)f[FRAG_SUPERSHOTGUN].hits * 100.0f / (float)f[FRAG_SUPERSHOTGUN].atts) + 0.5f) : 0;
-		int a_hb = f[FRAG_HYPERBLASTER].atts > 0 ? (int)(((float)f[FRAG_HYPERBLASTER].hits * 100.0f / (float)f[FRAG_HYPERBLASTER].atts) + 0.5f) : 0;
-		int a_gr = f[FRAG_GRENADES].atts > 0 ? (int)(((float)f[FRAG_GRENADES].hits * 100.0f / (float)f[FRAG_GRENADES].atts) + 0.5f) : 0;
-		int a_gl = f[FRAG_GRENADELAUNCHER].atts > 0 ? (int)(((float)f[FRAG_GRENADELAUNCHER].hits * 100.0f / (float)f[FRAG_GRENADELAUNCHER].atts) + 0.5f) : 0;
-		int a_bl = f[FRAG_BLASTER].atts > 0 ? (int)(((float)f[FRAG_BLASTER].hits * 100.0f / (float)f[FRAG_BLASTER].atts) + 0.5f) : 0;
+		// Live match: read directly from connected clients
+		edict_t *players[256];
+		int num_players = 0;
+		for (i = 1; i <= game.maxclients; i++)
+		{
+			if (g_edicts[i].inuse && g_edicts[i].client && g_edicts[i].client->pers.netname[0])
+				players[num_players++] = &g_edicts[i];
+		}
+		for (i = 0; i < num_players - 1; i++)
+		{
+			for (j = i + 1; j < num_players; j++)
+			{
+				int k1 = 0, k2 = 0;
+				for (x = 0; x < FRAG_TOTAL; x++) k1 += players[i]->client->resp.frags[x].kills;
+				for (x = 0; x < FRAG_TOTAL; x++) k2 += players[j]->client->resp.frags[x].kills;
+				if (k1 < k2) { edict_t *tmp = players[i]; players[i] = players[j]; players[j] = tmp; }
+			}
+		}
+		for (i = 0; i < num_players; i++)
+		{
+			edict_t *p = players[i];
+			fragstat_t *f = p->client->resp.frags;
+			int total_kills = 0;
+			for (x = 0; x < FRAG_TOTAL; x++) total_kills += f[x].kills;
 
-		if (a_rail > 100) a_rail = 100;
-		if (a_chain > 100) a_chain = 100;
-		if (a_rl > 100) a_rl = 100;
-		if (a_mg > 100) a_mg = 100;
-		if (a_sg > 100) a_sg = 100;
-		if (a_ss > 100) a_ss = 100;
-		if (a_hb > 100) a_hb = 100;
-		if (a_gr > 100) a_gr = 100;
-		if (a_gl > 100) a_gl = 100;
-		if (a_bl > 100) a_bl = 100;
+			char name[10];
+			strncpy(name, p->client->pers.netname, 9); name[9] = '\0';
 
-		char name[10];
-		strncpy(name, p->client->pers.netname, 9);
-		name[9] = '\0';
-
-		gi.cprintf(ent, PRINT_HIGH, "%-9s %3d%% %3d%% %3d%% %3d%% %3d%% %3d%% %3d%% %3d%% %3d%% %3d%%\n",
-			name,
-			a_rail, a_chain, a_rl, a_mg, a_sg, a_ss, a_hb, a_gr, a_gl, a_bl);
+			gi.cprintf(ent, PRINT_HIGH, "%-9s %2d %3d %3d %3d %3d %3d %3d %3d %3d %3d %3d\n",
+				name, total_kills,
+				CAPV(ACC(f, FRAG_RAILGUN)), CAPV(ACC(f, FRAG_CHAINGUN)),
+				CAPV(ACC(f, FRAG_ROCKETLAUNCHER)), CAPV(ACC(f, FRAG_MACHINEGUN)),
+				CAPV(ACC(f, FRAG_SHOTGUN)), CAPV(ACC(f, FRAG_SUPERSHOTGUN)),
+				CAPV(ACC(f, FRAG_HYPERBLASTER)), CAPV(ACC(f, FRAG_GRENADES)),
+				CAPV(ACC(f, FRAG_GRENADELAUNCHER)), CAPV(ACC(f, FRAG_BLASTER)));
+		}
 	}
+
+#undef ACC
+#undef CAPV
 }
+
+
 
 /*
 =================
